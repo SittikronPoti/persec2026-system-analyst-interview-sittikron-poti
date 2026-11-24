@@ -27,7 +27,7 @@
 
 ```mermaid
 flowchart TB
-    A["50,000 คน กดพร้อมกัน 12:00:00<br/>~150,000 requests (กดรัว + รีเฟรช)"] --> L0
+    A["50,000 คน กดพร้อมกัน 12:00:00<br/>~150,000 requests ใน 10 วินาทีแรก<br/>(กดรัว + รีเฟรช)"] --> L0
     L0["ชั้น 0: Client<br/>ปุ่มเปิดตามเวลา server, กดได้ครั้งเดียว,<br/>เห็น sold out แล้วหยุดยิง"] --> L1
     L1["ชั้น 1: CDN + WAF<br/>หน้าแคมเปญ + status.json cache 1 วิ,<br/>ตัด bot, rate limit ต่อ IP"] --> L2
     L2["ชั้น 2: API Gateway<br/>ตรวจ JWT ไม่แตะ DB, 1 req/วินาที/user,<br/>Waiting Room ถ้าเกินคาด"] --> L3
