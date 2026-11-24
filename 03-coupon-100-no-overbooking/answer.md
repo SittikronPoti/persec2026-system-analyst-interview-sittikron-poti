@@ -216,17 +216,36 @@ SA เสนอทั้งสองแบบพร้อมต้นทุน�
 
 ---
 
-## 9. Monitoring และ Reconciliation
+## 9. Non-Functional Requirements, Monitoring และ Reconciliation
+
+### 9.1 ตัวชี้วัดที่วัดได้
+
+ใช้กรอบเดียวกับ [ข้อ 1.1 ส่วนที่ 9](../01-flash-sale/1.1-high-level-architecture.md) แต่ปรับเป้าตามโจทย์นี้ โดยเน้นสองเรื่องที่โจทย์ถาม
+
+| # | Requirement | เป้าหมาย | วัดอย่างไร |
+|---|---|---|---|
+| N1 | **ไม่ Overbooking** | ผู้ได้สิทธิ์ **= 100 พอดี**, คนเดียวได้ซ้ำ = 0, ใบเดียวสองคน = 0 | SQL reconcile + alert ทันทีถ้า `HLEN winners` > 100 |
+| N2 | **DB ไม่ล่ม** | คำขอของผู้ใช้ที่อ่าน / เขียน DB ระหว่างแคมเปญ = 0, DB CPU ≤ 50%, connection ที่ใช้ ≤ pool ของ worker | metrics ของ DB + query log |
+| N3 | Latency ของ Claim API | p95 ≤ 300 ms (รวม `WAIT` ≤ 100 ms ของผู้ชนะ), p99 ≤ 1 s | histogram ที่ API Gateway |
+| N4 | Throughput | รับ ~150,000 คำขอใน 10 วินาทีแรก (≈ 15,000 req/s) โดย N3 และ N5 ยังผ่าน | load test ก่อนวันจริง |
+| N5 | Availability | ≥ 99.9% ของคำขอได้คำตอบที่ไม่ใช่ 5xx (ไม่นับ 429) | log ของ API Gateway |
+| N6 | Durability | ผู้ชนะถูกบันทึกลง DB ภายใน 60 วินาที และหาย = 0 | stream lag + เทียบ audit log กับ DB |
+| N7 | Isolation | p95 ของระบบหลักเปลี่ยนไม่เกิน 10% | APM dashboard เทียบ baseline |
+
+**Go / No-go:** load test และ chaos test (kill worker, Redis failover) ต้องผ่าน N1–N5 ก่อนอนุมัติเปิดแคมเปญ
+
+### 9.2 Monitoring ระหว่างแคมเปญ
 
 **ระหว่างแคมเปญ (dashboard real-time)**
 - คูปองคงเหลือ (`LLEN codes`), ผู้ชนะ (`HLEN winners`), stream lag, จำนวนแถวใน DB ที่มีเจ้าของ
 - RPS แยกตามชั้น, p95 latency, อัตรา `429 / 503`, CPU/memory ของ Redis
 - **Alert ทันที** ถ้าจำนวนผู้ชนะใน Redis หรือ DB > 100 (ตามการออกแบบเป็นไปไม่ได้ แต่ต้องเฝ้า)
 
-**หลังจบแคมเปญ**
+### 9.3 Reconciliation หลังจบแคมเปญ
+
 - Reconcile: `HLEN winners` = `SELECT COUNT(*) FROM coupon WHERE user_id IS NOT NULL` = 100
-- stream ไม่มี pending ค้าง, dead-letter ว่าง
-- สรุป post-campaign review: peak จริงเทียบกับที่ประเมิน ใช้ปรับขนาดแคมเปญครั้งถัดไป
+- stream ไม่มี pending ค้าง, dead-letter ว่าง, ทุก `CLAIM_WON` ใน audit log มีแถวตรงกันใน DB
+- สรุป post-campaign review: เทียบค่าจริงกับเป้า N1–N7 และ peak จริงกับที่ประเมิน ใช้ปรับขนาดแคมเปญครั้งถัดไป
 
 ---
 
